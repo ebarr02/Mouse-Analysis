@@ -113,28 +113,69 @@ plot(mouse3.aov$fitted.values, mouse.aov$residuals)
 ### Comment: Work with the model 3 from here onwards
 
 # Main effect contrasts / Interaction contrasts
-to_num <- function(x) as.numeric(gsub("\u2212", "-", trimws(as.character(x))))
-TukeyHSD(mouse3.aov, which = c("weight", "size", "connection", "person", "shape:size"))
-w <- to_num(mouse$weight)
-h <- to_num(mouse$shape)
-s <- to_num(mouse$size)
-c_conn <- to_num(mouse$connection)
-p <- to_num(mouse$person)
+#to_num <- function(x) as.numeric(gsub("\u2212", "-", trimws(as.character(x))))
+#TukeyHSD(mouse3.aov, which = c("weight", "size", "connection", "person", "shape:size"))
+#w <- to_num(mouse$weight)
+#h <- to_num(mouse$shape)
+#s <- to_num(mouse$size)
+#c_conn <- to_num(mouse$connection)
+#p <- to_num(mouse$person)
 
-mouse3.num <- lm(tracking_accuracy ~ w + h + s + c_conn + p + h:s, data = mouse)
+#mouse3.num <- lm(tracking_accuracy ~ w + h + s + c_conn + p + h:s, data = mouse)
 
-contrasts_est <- 2 * coef(mouse3.num)[-1]
-round(contrasts_est, 3)
+#contrasts_est <- 2 * coef(mouse3.num)[-1]
+#round(contrasts_est, 3)
 
 
 # Confidence intervals for contrast effects
 ## 1. Unadjusted 95% t-confidence intervals for all main & interaction contrasts
-ci_95 <- 2 * confint(mouse3.num, level = 0.95)[-1, ]
-round(cbind(Contrast = contrasts_est, ci_95), 3)
+#ci_95 <- 2 * confint(mouse3.num, level = 0.95)[-1, ]
+#round(cbind(Contrast = contrasts_est, ci_95), 3)
 
 ## 2. Family-wise adjusted 95% CIs for pairwise shape & size combinations
-TukeyHSD(mouse3.aov, which = "shape:size", conf.level = 0.95)
+#TukeyHSD(mouse3.aov, which = "shape:size", conf.level = 0.95)
 
+# Main effect & interaction contrasts + 95% Confidence Intervals
+w      <- as.numeric(as.character(mouse$weight))
+h      <- as.numeric(as.character(mouse$shape))
+s      <- as.numeric(as.character(mouse$size))
+c_conn <- as.numeric(as.character(mouse$connection))
+p      <- as.numeric(as.character(mouse$person))
+
+mouse3.num <- lm(tracking_accuracy ~ w + h + s + c_conn + p + h:s, data = mouse)
+
+# Contrasts & unadjusted 95% CIs
+round(cbind(Contrast = 2 * coef(mouse3.num)[-1], 2 * confint(mouse3.num)[-1, ]), 3)
+
+# Forest plot of mouse treatment contrasts & 95% CIs
+ci_df <- data.frame(
+  Term     = c("Weight (Heavy - Light)", "Shape (Ergo - Ambi)",
+               "Size (Large - Small)", "Connection (Wired - Wireless)",
+               "Person (Evan - Jay)", "Shape x Size"),
+  Contrast = 2 * coef(mouse3.num)[-1],
+  Lower    = 2 * confint(mouse3.num)[-1, 1],
+  Upper    = 2 * confint(mouse3.num)[-1, 2]
+)
+ci_df$Significant <- (ci_df$Lower > 0) | (ci_df$Upper < 0)
+ci_mouse <- subset(ci_df, Term != "Person (Evan - Jay)")
+
+ggplot(ci_mouse, aes(x = Contrast, y = reorder(Term, Contrast), color = Significant)) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "gray40") +
+  geom_linerange(aes(xmin = Lower, xmax = Upper), linewidth = 1) +
+  geom_point(size = 3) +
+  scale_color_manual(values = c("FALSE" = "gray50", "TRUE" = "#C84B31")) +
+  labs(
+    title = "95% Confidence Intervals for Mouse Treatment Contrasts",
+    x = "Contrast Estimate (Tracking Accuracy %)",
+    y = NULL
+  ) +
+  theme_minimal()
+
+# Pairwise shape x size comparisons (table + Tukey 95% CI plot)
+tuk <- TukeyHSD(mouse3.aov, which = "shape:size", conf.level = 0.95)
+tuk
+par(mar = c(5, 8, 4, 2))
+plot(tuk, las = 1)
 
 
 # Logistic regression model
