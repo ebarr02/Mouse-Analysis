@@ -22,10 +22,10 @@ mouse$connection <- as.factor(mouse$connection)
 mouse$person <- as.factor(mouse$person)
 mouse$pc <- as.factor(mouse$pc)
 
-## Interaction plots
-
 plot.design(tracking_accuracy ~ weight + shape + size
             + connection + person + pc, data = mouse)
+
+## Interaction plots
 
 interaction.plot(mouse$weight, mouse$shape, mouse$tracking_accuracy)
 interaction.plot(mouse$weight, mouse$size, mouse$tracking_accuracy)
@@ -47,33 +47,62 @@ interaction.plot(mouse$connection, mouse$pc, mouse$tracking_accuracy) ### some i
 
 interaction.plot(mouse$person, mouse$pc, mouse$tracking_accuracy)
 
-# Box-cox diagnostic (no transformation needed)
+# Model 1: Main-effects model
+
+mouse.aov <- aov(tracking_accuracy ~ weight + shape + size + connection + person + pc, data = mouse)
+summary(mouse.aov)
+
+# Model diagnostics
+
+## Box-cox diagnostic (no transformation needed)
 
 boxcox(tracking_accuracy ~ weight + shape + size
        + connection + person + pc, data = mouse,
        lambda = seq(0, 3, len = 30), ylab = "Log likelihood")
 
-# Main-effects model
-
-mouse.aov <- aov(tracking_accuracy ~ weight + shape + size + connection + person + pc, data = mouse)
-summary(mouse.aov)
-
-# Other residual diagnostics
-
 ## Q-Q plot of residuals
 qqnorm(mouse.aov$residuals, xlab = "Quantile of standard normal", 
        ylab = "Ordered residual")
+qqline(mouse.aov$residuals, col = "red", lwd = 2)
 
 ## Residuals versus fitted values
 plot(mouse.aov$fitted.values, mouse.aov$residuals)
 
-# Fit in 2 interaction terms with shape a based on interaction plots
+# Model 2: Fit in interaction terms we think will be significant based on interaction plots
 
-mouse2.aov <- aov(tracking_accuracy ~ weight + shape + size + connection + person + pc + shape:size + shape:connection, data = mouse)
+mouse2.aov <- aov(tracking_accuracy ~ weight + shape + size + connection + person + pc 
+                  + shape:size + shape:connection + weight:pc + shape:pc+ size:pc, + connection:pc, data = mouse)
 summary(mouse2.aov)
 
-# Interaction contrasts
+# Model 3: Reduced model with only significant effects
+
+mouse3.aov <- aov(tracking_accuracy ~ weight + shape + size + connection + person + shape:size, data = mouse)
+summary(mouse3.aov)
+
+# Residual diagnostics
+
+## Box-cox diagnostic (no transformation needed)
+
+boxcox(tracking_accuracy ~ weight + shape + size
+       + connection + person + pc + shape:size, data = mouse,
+       lambda = seq(0, 3, len = 30), ylab = "Log likelihood")
+
+## Q-Q plot of residuals
+qqnorm(mouse3.aov$residuals, xlab = "Quantile of standard normal", 
+       ylab = "Ordered residual")
+qqline(mouse3.aov$residuals, col = "red", lwd = 2)
+
+## Residuals versus fitted values
+plot(mouse3.aov$fitted.values, mouse.aov$residuals)
+
+### Comment: Work with the model 3 from here onwards
+
+# Main effect contrasts / Interaction contrasts
 
 
 
-# Logistics regression model
+# Confidence intervals for contrast effects
+
+
+
+# Logistic regression model
