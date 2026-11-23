@@ -1,6 +1,21 @@
 # Data
 
-mouse <- read.csv("C:/Users/thegr/OneDrive - UBC/UBC Sauder Classes/Sauder Year 6 (2026-27)/2026W1/STAT 404/Assignments/Project/6. Project Data.csv", sep = ",", header = TRUE)
+library(tidyverse)
+library(readxl)
+
+path <- file.choose()          # a window opens: select mouse_analysis_data.xlsx
+setwd(dirname(path))           # sets the working directory to that file's folder
+getwd()                        # confirms it
+
+mouse <- as.data.frame(read_excel(path))
+names(mouse) <- c("mouse", "weight", "size", "shape", "connection", "person", "pc",
+                  "score_tracking", "tracking_accuracy", "flicking")
+
+# The -1 values are stored as text with a special minus sign; convert to numbers
+fix <- function(x) as.numeric(gsub("\u2212", "-", as.character(x)))
+for (v in c("weight", "size", "shape", "connection", "person", "pc")) {
+  mouse[[v]] <- fix(mouse[[v]])
+}
 
 ## Weight (light = -1, heavy = 1)
 ## Shape (ambidextrous = -1, ergonomic = 1)
@@ -71,7 +86,7 @@ plot(mouse.aov$fitted.values, mouse.aov$residuals)
 # Model 2: Fit in interaction terms we think will be significant based on interaction plots
 
 mouse2.aov <- aov(tracking_accuracy ~ weight + shape + size + connection + person + pc 
-                  + shape:size + shape:connection + weight:pc + shape:pc+ size:pc, + connection:pc, data = mouse)
+                  + shape:size + shape:connection + weight:pc + shape:pc+ size:pc + connection:pc, data = mouse)
 summary(mouse2.aov)
 
 # Model 3: Reduced model with only significant effects
@@ -98,11 +113,52 @@ plot(mouse3.aov$fitted.values, mouse.aov$residuals)
 ### Comment: Work with the model 3 from here onwards
 
 # Main effect contrasts / Interaction contrasts
+to_num <- function(x) as.numeric(gsub("\u2212", "-", trimws(as.character(x))))
+TukeyHSD(mouse3.aov, which = c("weight", "size", "connection", "person", "shape:size"))
+w <- to_num(mouse$weight)
+h <- to_num(mouse$shape)
+s <- to_num(mouse$size)
+c_conn <- to_num(mouse$connection)
+p <- to_num(mouse$person)
 
+mouse3.num <- lm(tracking_accuracy ~ w + h + s + c_conn + p + h:s, data = mouse)
+
+contrasts_est <- 2 * coef(mouse3.num)[-1]
+round(contrasts_est, 3)
 
 
 # Confidence intervals for contrast effects
+## 1. Unadjusted 95% t-confidence intervals for all main & interaction contrasts
+ci_95 <- 2 * confint(mouse3.num, level = 0.95)[-1, ]
+round(cbind(Contrast = contrasts_est, ci_95), 3)
+
+## 2. Family-wise adjusted 95% CIs for pairwise shape & size combinations
+TukeyHSD(mouse3.aov, which = "shape:size", conf.level = 0.95)
 
 
 
 # Logistic regression model
+
+## Response as a proportion (accuracy is a percentage)
+mouse$acc_prop <- mouse$tracking_accuracy / 100
+
+## Fit (same terms as Model 3)
+logit.fit <- glm(acc_prop ~ weight + shape + size + connection + person + shape:size,
+                 data = mouse, family = quasibinomial)
+
+## Results
+summary(logit.fit)
+anova(logit.fit, test = "F")
+
+## Odds ratios with 95% confidence intervals
+round(exp(cbind(OR = coef(logit.fit), confint.default(logit.fit))), 3)
+
+## Fitted accuracy for each shape x size combination
+aggregate(fitted(logit.fit) ~ shape + size, data = mouse, FUN = mean)
+
+## Diagnostics
+plot(fitted(logit.fit), residuals(logit.fit, type = "pearson"),
+     xlab = "Fitted proportion", ylab = "Pearson residual")
+abline(h = 0, lty = 2)
+qqnorm(residuals(logit.fit, type = "deviance"),
+       xlab = "Quantile of standard normal", ylab = "Ordered deviance residual")
